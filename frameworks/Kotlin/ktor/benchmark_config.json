@@ -25,6 +25,29 @@
         "notes": "http://ktor.io/",
         "versus": "netty"
       },
+      "snapshot": {
+        "plaintext_url": "/plaintext",
+        "json_url": "/json",
+        "db_url": "/db",
+        "query_url": "/db?queries=",
+        "update_url": "/updates?queries=",
+        "fortune_url": "/fortunes",
+
+        "port": 9090,
+        "approach": "Realistic",
+        "classification": "Micro",
+        "database": "Postgres",
+        "framework": "ktor",
+        "language": "Kotlin",
+        "orm": "Raw",
+        "platform": "Netty",
+        "webserver": "None",
+        "os": "Linux",
+        "database_os": "Linux",
+        "display_name": "ktor-snapshot",
+        "notes": "http://ktor.io/",
+        "versus": "ktor"
+      },
       "jetty": {
         "plaintext_url": "/plaintext",
         "json_url": "/json",
