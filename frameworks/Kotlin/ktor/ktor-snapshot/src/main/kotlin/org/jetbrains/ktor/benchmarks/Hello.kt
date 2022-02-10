@@ -1,13 +1,13 @@
 package org.jetbrains.ktor.benchmarks
 
 import com.zaxxer.hikari.*
-import io.ktor.application.*
-import io.ktor.features.*
-import io.ktor.html.*
 import io.ktor.http.*
 import io.ktor.http.content.*
-import io.ktor.response.*
-import io.ktor.routing.*
+import io.ktor.server.application.*
+import io.ktor.server.html.*
+import io.ktor.server.plugins.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
 import kotlinx.coroutines.*
 import kotlinx.html.*
 import kotlinx.serialization.*
