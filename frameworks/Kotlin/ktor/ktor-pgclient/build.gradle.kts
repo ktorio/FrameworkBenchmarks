@@ -16,10 +16,10 @@ application {
     mainClass.set("MainKt")
 }
 
-val ktor_version = "2.3.12"
+val ktor_version = "3.0.0-rc-2-SNAPSHOT"
 
 dependencies {
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("io.ktor:ktor-server-netty:$ktor_version")
     implementation("io.ktor:ktor-server-html-builder-jvm:$ktor_version")
     implementation("io.ktor:ktor-server-default-headers-jvm:$ktor_version")

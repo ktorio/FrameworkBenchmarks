@@ -9,8 +9,8 @@ repositories {
     mavenCentral()
 }
 
-val ktorVersion = "2.3.12"
-val kotlinxSerializationVersion = "1.6.3"
+val ktorVersion = "3.0.0-rc-2-SNAPSHOT"
+val kotlinxSerializationVersion = "1.7.3"
 val exposedVersion = "0.52.0"
 
 dependencies {

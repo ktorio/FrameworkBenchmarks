@@ -16,8 +16,8 @@ application {
     mainClass.set("MainKt")
 }
 
-val ktor_version = "2.3.12"
-val kotlinx_serialization_version = "1.6.3"
+val ktor_version = "3.0.0-rc-2-SNAPSHOT"
+val kotlinx_serialization_version = "1.7.3"
 val vertx_pg_client = "4.5.8"
 
 dependencies {
