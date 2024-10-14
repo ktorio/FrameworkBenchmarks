@@ -1,52 +1,43 @@
 defmodule HelloWeb.PageController do
-  alias Hello.Models.{Fortune, World}
-
   use HelloWeb, :controller
 
-  @json "application/json"
-  @plain "text/plain"
+  alias Hello.Models.Fortune
+  alias Hello.Models.World
+  alias Hello.Repo
+  alias Hello.WorldCache
+
   @random_max 10_000
 
-
   def index(conn, _params) do
-    resp = Jason.encode!(%{"TE Benchmarks\n" => "Started"})
-
-    conn
-    |> put_resp_content_type(@json, nil)
-    |> send_resp(200, resp)
+    json(conn, %{"TE Benchmarks\n" => "Started"})
   end
 
   # avoid namespace collision
   def _json(conn, _params) do
-    resp = Jason.encode!(%{"message" => "Hello, world!"})
-
-    conn
-    |> put_resp_content_type(@json, nil)
-    |> send_resp(200, resp)
+    json(conn, %{message: "Hello, World!"})
   end
 
   def db(conn, _params) do
-    resp =
-      Repo.get(World, :rand.uniform(@random_max))
-      |> Jason.encode!()
+    world = Repo.get(World, random_id())
 
-    conn
-    |> put_resp_content_type(@json, nil)
-    |> send_resp(200, resp)
+    json(conn, world)
   end
 
   def queries(conn, params) do
-    :rand.seed(:exsp)
+    {:ok, worlds} =
+      Repo.transaction(fn ->
+        :rand.seed(:exsp)
 
-    resp =
-      1..@random_max
-      |> Enum.take_random(size(params["queries"]))
-      |> parallel(fn idx -> Repo.get(World, idx) end)
-      |> Jason.encode_to_iodata!()
+        worlds =
+          Stream.repeatedly(&random_id/0)
+          |> Stream.uniq()
+          |> Stream.map(&Repo.get(World, &1))
+          |> Enum.take(size(params["queries"]))
 
-    conn
-    |> put_resp_content_type(@json, nil)
-    |> send_resp(200, resp)
+        worlds
+      end)
+
+    json(conn, worlds)
   end
 
   def fortunes(conn, _params) do
@@ -55,69 +46,73 @@ defmodule HelloWeb.PageController do
       message: "Additional fortune added at request time."
     }
 
-    fortunes = [additional_fortune | Repo.all(Fortune)]
+    fortunes =
+      [additional_fortune | Repo.all(Fortune)]
+      |> Enum.sort_by(& &1.message)
 
-    render(conn, "fortunes.html",
-      fortunes: Enum.sort(fortunes, fn f1, f2 -> f1.message < f2.message end)
-    )
+    render(conn, :fortunes, fortunes: fortunes)
   end
 
   def updates(conn, params) do
-    :rand.seed(:exsp)
+    {:ok, worlds} =
+      Repo.transaction(fn ->
+        :rand.seed(:exsp)
 
-    count = size(params["queries"])
+        worlds =
+          Stream.repeatedly(&random_id/0)
+          |> Stream.uniq()
+          |> Stream.map(&Repo.get(World, &1))
+          |> Stream.map(fn world -> %{id: world.id, randomnumber: :rand.uniform(@random_max)} end)
+          |> Enum.take(size(params["queries"]))
+          # If this is not sorted it sometimes generates
+          #  FAIL for http://tfb-server:8080/updates/20
+          #  Only 20470 executed queries in the database out of roughly 20480 expected.
+          |> Enum.sort_by(& &1.id)
 
-    worlds =
-      1..@random_max
-      |> Enum.take_random(count)
-      |> parallel(fn idx -> Repo.get(World, idx) end)
-      |> Enum.map(fn world ->
-        %{id: world.id, randomnumber: random_but(world.randomnumber)}
+        Repo.insert_all(
+          World,
+          worlds,
+          on_conflict: {:replace_all_except, [:id]},
+          conflict_target: [:id],
+          returning: false
+        )
+
+        worlds
       end)
 
-    {^count, result} =
-      Repo.insert_all(
-        World,
-        worlds,
-        on_conflict: :replace_all,
-        conflict_target: [:id],
-        returning: true
-      )
-
-    conn
-    |> put_resp_content_type(@json, nil)
-    |> send_resp(200, Jason.encode_to_iodata!(result))
+    json(conn, worlds)
   end
 
   def plaintext(conn, _params) do
-    conn
-    |> put_resp_content_type(@plain, nil)
-    |> send_resp(200, "Hello, world!")
+    text(conn, "Hello, World!")
   end
 
-  defp random_but(not_this_value) do
-    case :rand.uniform(@random_max) do
-      new_value when new_value == not_this_value ->
-        random_but(not_this_value)
+  def cached(conn, params) do
+    :rand.seed(:exsp)
+    WorldCache.seed()
 
-      new_value ->
-        new_value
-    end
+    worlds =
+      Stream.repeatedly(&random_id/0)
+      |> Stream.uniq()
+      |> Stream.map(&WorldCache.fetch(&1))
+      |> Enum.take(size(params["count"]))
+
+    json(conn, worlds)
   end
 
-  defp parallel(collection, func) do
-    collection
-    |> Enum.map(&Task.async(fn -> func.(&1) end))
-    |> Enum.map(&Task.await(&1))
+  defp random_id() do
+    :rand.uniform(@random_max)
   end
 
   defp size(nil), do: 1
+  defp size(""), do: 1
 
-  defp size(queries) do
+  defp size(queries) when is_bitstring(queries) do
     case Integer.parse(queries) do
-      {x, ""} when x in 1..500 -> x
-      {x, ""} when x > 500 -> 500
+      {count, _} -> max(1, min(500, count))
       _ -> 1
     end
   end
+
+  defp size(_), do: 1
 end

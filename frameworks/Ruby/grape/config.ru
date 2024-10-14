@@ -1,6 +1,13 @@
 require 'erb'
 require 'active_record'
 require 'yaml'
+require_relative 'config/auto_tune'
+
+MAX_PK = 10_000
+ID_RANGE = (1..MAX_PK).freeze
+ALL_IDS = ID_RANGE.to_a
+QUERIES_MIN = 1
+QUERIES_MAX = 500
 
 Bundler.require :default
 
@@ -28,38 +35,43 @@ module Acme
   end
 
   class DatabaseQueries < Grape::API
+    helpers do
+      def bounded_queries
+        queries = params[:queries].to_i
+        queries.clamp(QUERIES_MIN, QUERIES_MAX)
+      end
+
+      # Return a random number between 1 and MAX_PK
+      def rand1
+        rand(MAX_PK).succ
+      end
+    end
+
     get '/db' do
       ActiveRecord::Base.connection_pool.with_connection do
-        World.find(Random.rand(10000) + 1)
+        World.find(rand1).attributes
       end
     end
 
     get '/query' do
-      queries = params[:queries].to_i
-      queries = 1 if queries < 1
-      queries = 500 if queries > 500
-
       ActiveRecord::Base.connection_pool.with_connection do
-        (1..queries).map do
-          World.find(Random.rand(10000) + 1)
+        ALL_IDS.sample(bounded_queries).map do |id|
+          World.find(id)
         end
       end
     end
 
     get '/updates' do
-      queries = params[:queries].to_i
-      queries = 1 if queries < 1
-      queries = 500 if queries > 500
-
-      ActiveRecord::Base.connection_pool.with_connection do
-        worlds = (1..queries).map do
-          world = World.find(Random.rand(10000) + 1)
-          world.randomNumber = Random.rand(10000) + 1
-          World.update(world.id, :randomNumber => world.randomNumber)
-          world
+      worlds =
+        ActiveRecord::Base.connection_pool.with_connection do
+          ALL_IDS.sample(bounded_queries).map do |id|
+            world = World.find(id)
+            new_value = rand1
+            new_value = rand1 while new_value == world.randomNumber
+            world.update_columns(randomNumber: new_value)
+            world
+          end
         end
-        worlds
-      end
     end
   end
 
@@ -68,7 +80,6 @@ module Acme
       header 'Date', Time.now.httpdate
       header 'Server', 'WebServer'
     end
-    
     content_type :json, 'application/json'
     format :json
 

@@ -2,62 +2,143 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"runtime"
+	"strconv"
+	"sync/atomic"
 	"time"
 
-	"github.com/panjf2000/gnet"
+	"github.com/evanphx/wildcat"
+	"github.com/panjf2000/gnet/v2"
 )
 
 type httpServer struct {
-	*gnet.EventServer
+	gnet.BuiltinEventEngine
+
+	addr      string
+	multicore bool
+	eng       gnet.Engine
 }
 
 type httpCodec struct {
-	delimiter []byte
+	parser        *wildcat.HTTPParser
+	contentLength int
+	buf           []byte
 }
 
-func (hc *httpCodec) Encode(c gnet.Conn, buf []byte) (out []byte, err error) {
-	return buf, nil
-}
+var CRLF = []byte("\r\n\r\n")
 
-func (hc *httpCodec) Decode(c gnet.Conn) (out []byte, err error) {
-	buf := c.Read()
-	if buf == nil {
-		return
+func (hc *httpCodec) parse(data []byte) (int, error) {
+	// Perform a legit HTTP request parsing.
+	bodyOffset, err := hc.parser.Parse(data)
+	if err != nil {
+		return 0, err
 	}
-	c.ResetBuffer()
 
-	// process the pipeline
-	var i int
+	// First check if the Content-Length header is present.
+	contentLength := hc.getContentLength()
+	if contentLength > -1 {
+		return bodyOffset + contentLength, nil
+	}
+
+	// If the Content-Length header is not found,
+	// we need to find the end of the body section.
+	if idx := bytes.Index(data, CRLF); idx != -1 {
+		return idx + 4, nil
+	}
+
+	return 0, errors.New("invalid http request")
+}
+
+var contentLengthKey = []byte("Content-Length")
+
+func (hc *httpCodec) getContentLength() int {
+	if hc.contentLength != -1 {
+		return hc.contentLength
+	}
+
+	val := hc.parser.FindHeader(contentLengthKey)
+	if val != nil {
+		i, err := strconv.ParseInt(string(val), 10, 0)
+		if err == nil {
+			hc.contentLength = int(i)
+		}
+	}
+
+	return hc.contentLength
+}
+
+func (hc *httpCodec) resetParser() {
+	hc.contentLength = -1
+}
+
+func (hc *httpCodec) reset() {
+	hc.resetParser()
+	hc.buf = hc.buf[:0]
+}
+
+func (hc *httpCodec) appendResponse() {
+	hc.buf = append(hc.buf, "HTTP/1.1 200 OK\r\nServer: gnet\r\nContent-Type: text/plain\r\nDate: "...)
+	hc.buf = append(hc.buf, NowTimeFormat()...)
+	hc.buf = append(hc.buf, "\r\nContent-Length: 13\r\n\r\nHello, World!"...)
+}
+
+func (hs *httpServer) OnBoot(eng gnet.Engine) gnet.Action {
+	hs.eng = eng
+	log.Printf("echo server with multi-core=%t is listening on %s\n", hs.multicore, hs.addr)
+	return gnet.None
+}
+
+func (hs *httpServer) OnOpen(c gnet.Conn) ([]byte, gnet.Action) {
+	c.SetContext(&httpCodec{parser: wildcat.NewHTTPParser()})
+	return nil, gnet.None
+}
+
+func (hs *httpServer) OnTraffic(c gnet.Conn) gnet.Action {
+	hc := c.Context().(*httpCodec)
+	buf, _ := c.Next(-1)
+
 pipeline:
-	if i = bytes.Index(buf, hc.delimiter); i != -1 {
-		out = append(out, "HTTP/1.1 200 OK\r\nServer: gnet\r\nContent-Type: text/plain\r\nDate: "...)
-		out = time.Now().AppendFormat(out, "Mon, 02 Jan 2006 15:04:05 GMT")
-		out = append(out, "\r\nContent-Length: 13\r\n\r\nHello, World!"...)
-		buf = buf[i+4:]
+	nextOffset, err := hc.parse(buf)
+	if err != nil {
+		goto response
+	}
+	hc.resetParser()
+	hc.appendResponse()
+	buf = buf[nextOffset:]
+	if len(buf) > 0 {
 		goto pipeline
 	}
-	// request not ready, yet
-	return
+response:
+	c.Write(hc.buf)
+	hc.reset()
+	return gnet.None
 }
 
-func (hs *httpServer) OnInitComplete(srv gnet.Server) (action gnet.Action) {
-	log.Printf("HTTP server is listening on %s (multi-cores: %t, loops: %d)\n",
-		srv.Addr.String(), srv.Multicore, srv.NumEventLoop)
-	return
+var now atomic.Value
+
+func ticktock() {
+	now.Store(nowTimeFormat())
+	for range time.Tick(time.Second) {
+		now.Store(nowTimeFormat())
+	}
 }
 
-func (hs *httpServer) React(frame []byte, c gnet.Conn) (out []byte, action gnet.Action) {
-	// handle the request
-	out = frame
-	return
+func NowTimeFormat() string {
+	return now.Load().(string)
+}
+
+func nowTimeFormat() string {
+	return time.Now().Format("Mon, 02 Jan 2006 15:04:05 GMT")
 }
 
 func init() {
 	runtime.GOMAXPROCS(runtime.NumCPU() * 2)
+	now.Store(nowTimeFormat())
+	go ticktock()
 }
 
 func main() {
@@ -69,9 +150,8 @@ func main() {
 	flag.BoolVar(&multicore, "multicore", true, "multicore")
 	flag.Parse()
 
-	http := new(httpServer)
-	hc := &httpCodec{delimiter: []byte("\r\n\r\n")}
+	hs := &httpServer{addr: fmt.Sprintf("tcp://:%d", port), multicore: multicore}
 
 	// Start serving!
-	log.Fatal(gnet.Serve(http, fmt.Sprintf("tcp://:%d", port), gnet.WithMulticore(multicore), gnet.WithCodec(hc)))
+	log.Println("server exits:", gnet.Run(hs, hs.addr, gnet.WithMulticore(multicore)))
 }

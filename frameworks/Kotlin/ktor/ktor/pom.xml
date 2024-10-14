@@ -12,23 +12,18 @@
     <name>org.jetbrains.ktor tech-empower-framework-benchmark</name>
 
     <properties>
-        <kotlin.version>1.5.21</kotlin.version>
-        <ktor.version>1.6.1</ktor.version>
-        <serialization.version>1.2.2</serialization.version>
-        <kotlinx.html.version>0.7.3</kotlinx.html.version>
+        <kotlin.version>1.9.22</kotlin.version>
+        <ktor.version>2.3.11</ktor.version>
+        <serialization.version>1.6.3</serialization.version>
+        <kotlinx.html.version>0.11.0</kotlinx.html.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <hikaricp.version>5.0.0</hikaricp.version>
-        <logback.version>1.2.4</logback.version>
-        <mysql.version>8.0.25</mysql.version>
-        <postgresql.version>42.2.23</postgresql.version>
+        <logback.version>1.2.13</logback.version>
+        <mysql.version>8.0.28</mysql.version>
+        <postgresql.version>42.7.2</postgresql.version>
     </properties>
 
     <dependencies>
-        <dependency>
-            <groupId>org.jetbrains.kotlin</groupId>
-            <artifactId>kotlin-stdlib-jdk8</artifactId>
-            <version>${kotlin.version}</version>
-        </dependency>
         <dependency>
             <groupId>org.jetbrains.kotlin</groupId>
             <artifactId>kotlin-reflect</artifactId>
@@ -49,25 +44,14 @@
             <artifactId>kotlinx-html-jvm</artifactId>
             <version>${kotlinx.html.version}</version>
         </dependency>
-
         <dependency>
             <groupId>io.ktor</groupId>
-            <artifactId>ktor-server-netty</artifactId>
+            <artifactId>ktor-server-default-headers-jvm</artifactId>
             <version>${ktor.version}</version>
         </dependency>
         <dependency>
             <groupId>io.ktor</groupId>
-            <artifactId>ktor-server-jetty</artifactId>
-            <version>${ktor.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.ktor</groupId>
-            <artifactId>ktor-server-cio</artifactId>
-            <version>${ktor.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.ktor</groupId>
-            <artifactId>ktor-html-builder</artifactId>
+            <artifactId>ktor-server-html-builder-jvm</artifactId>
             <version>${ktor.version}</version>
         </dependency>
         <dependency>
@@ -92,6 +76,21 @@
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
             <version>${logback.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.ktor</groupId>
+            <artifactId>ktor-server-netty-jvm</artifactId>
+            <version>${ktor.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.ktor</groupId>
+            <artifactId>ktor-server-jetty-jvm</artifactId>
+            <version>${ktor.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.ktor</groupId>
+            <artifactId>ktor-server-cio-jvm</artifactId>
+            <version>${ktor.version}</version>
         </dependency>
     </dependencies>
 
